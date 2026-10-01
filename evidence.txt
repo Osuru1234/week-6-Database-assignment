@@ -1,0 +1,107 @@
+# PostgreSQL Backup, Recovery & Streaming Replication
+# Verified Results
+
+## 1. Logical Restore
+
+Database: bootcamp
+
+Verification:
+
+SELECT count(*) AS student_count FROM students;
+
+Result:
+
+student_count
+-------------
+5
+
+Status: SUCCESS
+
+
+## 2. Point-in-Time Recovery (PITR)
+
+A PITR test was performed using a separate recovery data directory.
+
+The students table had been deleted from the primary database.
+
+The recovery target was set before the deletion.
+
+Verification after PITR:
+
+SELECT count(*) AS student_count FROM students;
+
+Result:
+
+student_count
+-------------
+5
+
+Status: SUCCESS
+
+
+## 3. Streaming Standby
+
+Primary server:
+
+Port: 5432
+
+Standby server:
+
+Port: 5434
+
+Standby verification:
+
+SELECT pg_is_in_recovery();
+
+Result:
+
+t
+
+Status: Standby operating in recovery mode.
+
+
+## 4. Replication Health
+
+Query:
+
+SELECT application_name,
+       client_addr,
+       state,
+       pg_wal_lsn_diff(sent_lsn, replay_lsn) AS lag_bytes
+FROM pg_stat_replication;
+
+Result:
+
+application_name | client_addr | state     | lag_bytes
+-----------------+-------------+-----------+----------
+walreceiver      | 127.0.0.1   | streaming | 0
+
+Status: SUCCESS
+
+
+## 5. Replication Test
+
+A test row was inserted on the primary:
+
+Streaming replication works
+
+The row was successfully visible on the standby.
+
+Status: SUCCESS
+
+
+## Overall Result
+
+Logical backup and restore: SUCCESS
+
+WAL archiving: SUCCESS
+
+Physical base backup: SUCCESS
+
+Point-in-Time Recovery: SUCCESS
+
+Streaming replication: SUCCESS
+
+Replication health: STREAMING
+
+Replication lag at final check: 0 bytes
