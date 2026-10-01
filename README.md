@@ -1,396 +1,141 @@
-**# PostgreSQL Backup, Recovery \& Streaming Replication**
+ # PostgreSQL Backup, Recovery and Replication Assignment
 
+## Project Overview
 
+This project demonstrates practical PostgreSQL database administration techniques, including logical backups, WAL archiving, physical base backups, Point-in-Time Recovery (PITR), streaming replication, and replication monitoring.
 
-**## Project Overview**
+## Environment
 
+- PostgreSQL Version: 18.6
+- Operating System: Windows
+- Primary PostgreSQL Port: 5432
+- Standby PostgreSQL Port: 5434
+- Database: `bootcamp`
 
+---
 
-**This project demonstrates PostgreSQL database backup, recovery, Point-in-Time Recovery (PITR), WAL archiving, and streaming replication using PostgreSQL 18 on Windows.**
+## Step 1 Solution: Logical Backup
 
+- `pg_dump -Fc` creates a compressed, portable backup.
+- `pg_restore --list` confirms the contents of the backup.
+- Restoring into `bootcamp_check` verifies that the backup can be restored successfully.
 
+### Verification
 
-**The practical work was completed using a primary PostgreSQL server and a separate standby server.**
+The restored `students` table contained:
 
+```text
+student_count
+-------------
+5
+```
 
+---
 
-**## Environment**
+## Step 2 Solution: WAL Archiving
 
+- `wal_level = replica` enables features required for replication and point-in-time recovery.
+- WAL files are archived for later replay during recovery.
+- A base backup provides the starting point for recovery.
+- `pg_switch_wal()` was used to generate and archive WAL activity for testing.
 
+---
 
-**- Database System: PostgreSQL 18.6**
+## Step 3 Solution: Point-in-Time Recovery
 
-**- Operating System: Windows**
+- WAL replay restores database changes up to a specified timestamp.
+- The deleted `students` table was recovered because recovery stopped before the deletion occurred.
+- This demonstrates how PITR can recover data without restoring the entire database from scratch.
 
-**- Primary Server Port: 5432**
+### Verification
 
-**- Standby Server Port: 5434**
+After PITR, the recovered `students` table contained:
 
-**- Primary Database: `bootcamp`**
+```text
+student_count
+-------------
+5
+```
 
-**- Replication User: `replicator`**
+---
 
+## Step 4 Solution: Streaming Replication
 
+- A dedicated replication role named `replicator` was configured.
+- `pg_basebackup -R` was used to create and configure the standby.
+- The standby continuously receives and replays WAL from the primary server.
 
-**## 1. Logical Backup**
+### Standby Verification
 
+```text
+pg_is_in_recovery()
+-------------------
+t
+```
 
+The value `t` confirms that the server was operating as a standby/recovery server.
 
-**A PostgreSQL custom-format logical backup was created using `pg\_dump`.**
+---
 
+## Step 5 Solution: Replication Monitoring
 
+Replication was monitored using `pg_stat_replication`.
 
-**```bash**
+The verified result was:
 
-**pg\_dump -Fc -f \~/backups/bootcamp.dump bootcamp**
+```text
+application_name | client_addr | state     | lag_bytes
+-----------------+-------------+-----------+----------
+walreceiver      | 127.0.0.1   | streaming | 0
+```
 
-**```**
+This confirmed that the standby was connected and streaming WAL from the primary with zero reported lag at the time of testing.
 
+---
 
+## Step 6 Solution: Replication Test
 
-**The backup was inspected using `pg\_restore --list` and confirmed to contain the `students` table and its data.**
+A test table was created on the primary:
 
+```sql
+CREATE TABLE replication_test (
+    id SERIAL PRIMARY KEY,
+    message TEXT
+);
+```
 
+A test record was inserted:
 
-**The logical backup was successfully restored and verified with:**
+```sql
+INSERT INTO replication_test (message)
+VALUES ('Streaming replication works');
+```
 
+The record was then checked on the standby server, confirming that the change had successfully replicated.
 
+---
 
-**```sql**
+## Final Outcome
 
-**SELECT count(\*) AS student\_count FROM students;**
+This assignment demonstrated practical PostgreSQL database administration skills, including:
 
-**```**
+- Creating and verifying database backups
+- Performing logical restore
+- Configuring WAL archiving
+- Performing physical base backups
+- Performing Point-in-Time Recovery
+- Configuring streaming replication
+- Monitoring replication health
+- Verifying recovered and replicated data
 
+These techniques are important for improving database availability, recovery, and data protection.
 
+## Files Included
 
-**Result:**
+- `README.md` — Project documentation and results
+- `commands.sql` — Main PostgreSQL commands and SQL used
+- `evidence.txt` — Verified test results and evidence
 
+## Conclusion
 
-
-**```text**
-
-**student\_count**
-
-**-------------**
-
-**5**
-
-**```**
-
-
-
-**## 2. WAL Archiving**
-
-
-
-**WAL archiving was configured with:**
-
-
-
-**```text**
-
-**wal\_level = replica**
-
-**archive\_mode = on**
-
-**```**
-
-
-
-**The Windows archive command was configured to copy WAL files to:**
-
-
-
-**```text**
-
-**C:\\Users\\KONZA-VDI\\backups\\wal**
-
-**```**
-
-
-
-**Multiple WAL segments were successfully archived.**
-
-
-
-**## 3. Base Backup**
-
-
-
-**A physical base backup was created using:**
-
-
-
-**```bash**
-
-**pg\_basebackup -U postgres -D "%USERPROFILE%\\backups\\base" -Ft -z -Xs -P**
-
-**```**
-
-
-
-**The base backup completed successfully at 100%.**
-
-
-
-**## 4. Point-in-Time Recovery (PITR)**
-
-
-
-**A separate PITR environment was created so that the original PostgreSQL data directory was not damaged.**
-
-
-
-**The recovery target was set before the deletion of the `students` table.**
-
-
-
-**The PITR server successfully recovered the database and returned:**
-
-
-
-**```text**
-
-**student\_count**
-
-**-------------**
-
-**5**
-
-**```**
-
-
-
-**This confirmed that the deleted table was recovered to the selected point in time.**
-
-
-
-**## 5. Streaming Replication**
-
-
-
-**A replication role was created:**
-
-
-
-**```sql**
-
-**CREATE ROLE replicator**
-
-**WITH REPLICATION LOGIN PASSWORD 'reppass';**
-
-**```**
-
-
-
-**The primary server runs on:**
-
-
-
-**```text**
-
-**Port: 5432**
-
-**```**
-
-
-
-**The standby server runs on:**
-
-
-
-**```text**
-
-**Port: 5434**
-
-**```**
-
-
-
-**The standby was created using:**
-
-
-
-**```bash**
-
-**pg\_basebackup -h 127.0.0.1 -U replicator \\**
-
-**-D "%USERPROFILE%\\standby" -R -P**
-
-**```**
-
-
-
-**The standby was successfully started and verified with:**
-
-
-
-**```sql**
-
-**SELECT pg\_is\_in\_recovery();**
-
-**```**
-
-
-
-**Result:**
-
-
-
-**```text**
-
-**t**
-
-**```**
-
-
-
-**This confirmed that the server was operating as a standby.**
-
-
-
-**## 6. Replication Health**
-
-
-
-**Replication status was checked on the primary using:**
-
-
-
-**```sql**
-
-**SELECT application\_name,**
-
-&#x20;      **client\_addr,**
-
-&#x20;      **state,**
-
-&#x20;      **pg\_wal\_lsn\_diff(sent\_lsn, replay\_lsn) AS lag\_bytes**
-
-**FROM pg\_stat\_replication;**
-
-**```**
-
-
-
-**Final result:**
-
-
-
-**```text**
-
-**application\_name | client\_addr | state     | lag\_bytes**
-
-**-----------------+-------------+-----------+----------**
-
-**walreceiver      | 127.0.0.1   | streaming | 0**
-
-**```**
-
-
-
-**This confirmed that the standby was connected and streaming with zero reported WAL lag at the time of the check.**
-
-
-
-**## 7. Replication Test**
-
-
-
-**A test table was created on the primary:**
-
-
-
-**```sql**
-
-**CREATE TABLE replication\_test (**
-
-&#x20;   **id SERIAL PRIMARY KEY,**
-
-&#x20;   **message TEXT**
-
-**);**
-
-
-
-**INSERT INTO replication\_test (message)**
-
-**VALUES ('Streaming replication works');**
-
-**```**
-
-
-
-**The table and row were then queried from the standby server.**
-
-
-
-**The replicated row was successfully visible on the standby, confirming that changes made on the primary were being replicated.**
-
-
-
-**## 8. Skills Demonstrated**
-
-
-
-**This practical exercise demonstrated:**
-
-
-
-**- PostgreSQL logical backups**
-
-**- PostgreSQL physical backups**
-
-**- `pg\_dump`**
-
-**- `pg\_restore`**
-
-**- `pg\_basebackup`**
-
-**- WAL archiving**
-
-**- Point-in-Time Recovery**
-
-**- Recovery using a separate PostgreSQL data directory**
-
-**- PostgreSQL replication roles**
-
-**- `pg\_hba.conf` configuration**
-
-**- Streaming replication**
-
-**- Standby server configuration**
-
-**- Replication monitoring**
-
-**- WAL lag monitoring**
-
-**- Backup and recovery verification**
-
-
-
-**## Conclusion**
-
-
-
-**The PostgreSQL backup and disaster-recovery environment was successfully implemented and tested.**
-
-
-
-**Logical backup and restore were verified, WAL archiving was configured, Point-in-Time Recovery successfully recovered deleted data, and streaming replication was successfully established between the primary and standby servers.**
-
-
-
-**Final replication status showed:**
-
-
-
-**```text**
-
-**state: streaming**
-
-**lag: 0 bytes**
-
-**```**
-
+The project successfully demonstrated backup, recovery, and replication procedures using PostgreSQL 18.6 on Windows. The successful recovery of five student records and the verified streaming replication state demonstrate that the configured procedures worked during testing.
